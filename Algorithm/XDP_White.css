@@ -1,0 +1,35 @@
+body {
+    background-color: #EEEEEE;
+    font-family: 'Lato', sans-serif;
+    /* font-family: 'Open Sans', sans-serif; */
+    /* font-family: 'PT Sans', sans-serif; */
+    /* font-family: 'Droid Sans', sans-serif; */
+    color: #222222;
+    /*OTHER COLORS: Pink = f92772; Purple = ae81ff; Teal = 66d9ef; orange = fd9720;  */
+}
+
+#pageArea {
+    background-color: #FFFFFF;
+    border: 1px solid #DDDDDD;
+    width: 700px;
+    /* height: auto; */
+    padding: 20px 10px;
+    /* centers div */
+    margin: 0 auto;
+    /* create shadow around box */
+    box-shadow: 2px 3px 5px #AAAAAA;
+}
+
+#docViewArea {
+    width: 500px;
+    /* centers div */
+    margin: 0 auto;
+    /* create shadow around box */
+}
+
+/*selects all elements with an id that starts with 'sentbg' */
+[id ^= 'sentbg'] {
+    border-radius: 10px;
+    padding: 3px;
+    cursor: pointer;
+}

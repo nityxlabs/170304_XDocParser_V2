@@ -1,0 +1,196 @@
+<html>
+
+<head>
+
+<title>
+    170304_DocTest_V1
+</title>
+
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Lato">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Open+Sans">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=PT+Sans">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Droid+Sans">
+<link rel = "stylesheet" type = "text/css" href = "XDP_Midnight.css">
+
+<script src = "../Classes/jquery-2.1.4.min.js"></script>
+<script src = "../Classes/FullSent.js"></script>
+<script src = "../Classes/XDoc_StrTools.js"></script>
+<script src = "../Classes/CoOccurWord_151213.js"></script>
+<script src = "../Classes/WordStemmer_151213.js"></script>
+<script src = "/Users/Mokha/Documents/Web Design/Nityxlabs/JS Scripts/objHash.js"></script>
+
+<script type = 'text/javascript'>
+var isIE = document.all;
+var g_charSentThres = 30;
+
+/* Global Variables - CoOccurring Words */
+var g_COW;      //instance for Co-Occurring Words
+
+/* Global Variables - Stemmer Class */
+var g_objStemmer;
+var g_stemMinLen = 3;         //the minimum character length for a string to be considered a stem
+var g_minSimThres = 0.8;      //minimum percentage similarity for 2 strings to be considered similar
+
+function highlightSentHover(e) {
+    //METHOD: highlights sentence that are hovered over. Requires events 'onmouseenter' and 'onmouseleave'
+    var sent = isIE ? e.srcElement : e.target;
+
+    //NOTE: e.type gives the event type (e.g. mouseover, mouseenter, mouseleave, mouseout)
+    switch( e.type ) {
+        case 'mouseenter':
+            sent.style.backgroundColor = "hsla(157, 35%, 50%, 0.5)";
+            break;
+        case 'mouseleave':
+            sent.style.backgroundColor = "transparent";
+            break;
+    }
+
+    //TEST:: console.log("event type = ", e.type);
+}
+
+function highlightSent(e) {
+    //METHOD: highlights sentences based on click
+    var sent = isIE ? e.srcElement : e.target;
+
+    if (sent.style.backgroundColor == 'transparent')
+        sent.style.backgroundColor = "hsla(157, 35%, 50%, 0.5)";
+    else
+        sent.style.backgroundColor = 'transparent';
+}
+
+function saveDoc() {
+    //METHOD: process document with FullSent.js
+    var groupSent = parseInt( $('#setGroupSent').val() );
+
+    //split document into individual words
+    var fullSent = new FullSent( $('#textUpload').val(), g_charSentThres );
+    var compileSent = fullSent.arrCompSent.map( 
+        function(sent, i) {
+            if (i % groupSent == 0)
+                return "<span id = 'sentbg" + i + "' onclick = 'highlightSent(event)' style = 'background-color:transparent;'>" + sent + "</span><br/><br/>";
+            else
+                return "<span id = 'sentbg" + i + "' onclick = 'highlightSent(event)' style = 'background-color:transparent;'>" + sent + "</span>";
+        } 
+    );
+
+    //display document
+    var fontSize = $('#setFontSize').val();
+    var lineHeight = fontSize * 2;
+    $('#docViewArea').html( compileSent );
+
+    // $('#docViewArea').css( 'font-size', fontSize );
+    // $('#docViewArea').css( 'line-height', lineHeight );
+
+    $('#docViewArea').css( 'font-size', fontSize + 'px' );
+    $('#docViewArea').css( 'line-height', lineHeight + 'px' );
+
+    //Save document to hidden input fields
+    $('#DocFull').val( $('#textUpload').val() );
+    //create a version of the text where common words are removed
+    var textRCW = strTools_removeCommonWords_SelectText( $('#textUpload').val() );      //textRCW = text Remove Common Words
+    $('#DocFullCWR').val( textRCW );
+
+    //create word stemmer algorithm
+    g_objStemmer = new classStemmer( $('#textUpload').val(), g_stemMinLen, g_minSimThres );
+
+    //create CoOccurWord object - 
+    var fullSentRCW = new FullSent( textRCW, g_charSentThres - 10 );
+    var arrStemSent = g_objStemmer.translateWordToStem( fullSentRCW.arrCompSent );
+    createCOWObj( arrStemSent );
+}
+
+/* FUNCTION: Co-Occurring Words */
+function createCOWObj() {
+    //VAR: arrSents = array of sentences created by the class FullSent.js
+    //METHOD: creates a CoOccurWord object instance
+    
+    //create sentences that will remove common words & replace each word with stem
+    var fullSentRCW = new FullSent( $('#DocFullCWR').val(), g_charSentThres - 10 );     //fullSentRCW = Full Sentences Remove Common Words
+    var arrStemSents = g_objStemmer.translateWordToStem( fullSentRCW.arrCompSent );
+
+    //create CoOccurWord instance    
+    var dist_back = 1;
+    var dist_forward = 1;
+    var thresFreq = 2;
+    //set global variable 
+    g_COW = new CoOccurWord( arrStemSents, dist_back, dist_forward, thresFreq );
+}
+
+function listWordStems() {
+    //METHOD: finds keys in hashOWS (hash Original Word to Stem) that are similar to string 'inputStr'
+    var hashMatches = g_objStemmer.showListWordStems( $('#input_listWordStems').val() );
+    
+    //display hash of results
+    var strMatches = "";
+    for (var k in hashMatches)
+        strMatches+= k + " = " + hashMatches[k] + "<br/>";
+
+    $('#display_listWordStems ').html( strMatches );
+}
+
+function searchCoOccurWords() {
+    //METHOD: finds words that co-occur with a word of interest
+    var hashCOW = g_COW.findCoOccurWords( $('#input_searchCoOccurWords').val() );
+    hashCOW = obj_sortByVal( hashCOW, true );
+    
+    //display co-occurring word results
+    var strCOW = $('#input_searchCoOccurWords').val() + "<br/>" ;
+    for (var k in hashCOW)
+        strCOW += k + ": " + hashCOW[k] + "<br/>";
+
+    $('#display_searchCoOccurWords').html( strCOW );
+}
+
+</script>
+
+</head>
+
+<body>
+<input type = 'hidden' id = 'DocFull'/>      <!--Full Document where Commmon Words Removed -->
+<input type = 'hidden' id = 'DocFullCWR'/>      <!--Document where Commmon Words Removed -->
+
+<table border = '0' cellpadding = '5' cellspacing = '10'><tr>
+    <td valign = 'top'>
+        <table>
+            <tr><td class = 'boxBorder' valign = 'top'>
+                <textarea id = 'textUpload'></textarea>
+                <br/>
+                <button onclick = 'saveDoc()'>Record Document</button>
+                <br/>
+                Font Size: <input id = 'setFontSize' type = 'text' value = '20' size = '2' />
+                <br/>
+                Group Sent: <input id = 'setGroupSent' type = 'text' value = '3' size = '2' />
+            </td></tr>
+
+            <tr><td class = 'boxBorder' valign = 'top'>
+                Find Similar Words to Key:
+                <br/>
+                <!-- Input for finding co-occurring words -->
+                <input type = 'text' id = 'input_listWordStems' onkeyup = 'listWordStems()'/>
+                <br/>
+                <span id = 'display_listWordStems'></span>
+            </td></tr>
+
+            <tr><td class = 'boxBorder' valign = 'top'>
+                Find Co-Occurring Words:
+                <br/>
+                <!-- Input for finding co-occurring words -->
+                <input type = 'text' id = 'input_searchCoOccurWords'/>
+                <br/>
+                <button onclick = 'searchCoOccurWords()'>Find Co-Occurring Words</button>
+                <br/>
+                <span id = 'display_searchCoOccurWords'></span>
+            </td></tr>
+        </table>
+    </td>
+
+    <td valign = 'top'>
+        <div id = 'pageArea'>
+            <div id = 'docViewArea'></div>
+        </div>
+    </td>
+</tr></table>
+
+</body>
+
+</html>

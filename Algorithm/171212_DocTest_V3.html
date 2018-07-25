@@ -1,0 +1,459 @@
+<html>
+
+<head>
+
+<title>
+    171212_DocTest_V3
+</title>
+
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Lato">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Open+Sans">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=PT+Sans">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Droid+Sans">
+<link rel = "stylesheet" type = "text/css" href = "XDP_Midnight.css">
+
+<script src = "../Classes/jquery-2.1.4.min.js"></script>
+<script src = "../Classes/FullSent.js"></script>
+<script src = "../Classes/HighlightDoc_171208.js"></script>
+<!-- <script src = "../Classes/XDoc_StrTools.js"></script> -->
+<script src = "../Classes/CoOccurWord_151213.js"></script>
+<!-- <script src = "../Classes/WordStemmer_151213.js"></script> -->
+<script src = "../Classes/170310_classStemmer.js"></script>
+<script src = "../Classes/NaiveBayes_170625.js"></script>
+<script src = "/Users/Mokha/Documents/Web Design/Nityxlabs/JS Scripts/XDoc_StrTools.js"></script>
+<!-- <script src = "/Users/Mokha/Documents/Web Design/Nityxlabs/JS Scripts/hash.js"></script> -->
+<script src = "/Users/Mokha/Documents/Web Design/Nityxlabs/JS Scripts/objHash.js"></script>
+<script src = "/Users/Mokha/Documents/Web Design/Nityxlabs/JS Scripts/mathTools.js"></script>
+
+<!-- Test Modules -->
+<script src = "../TestModules/171119_TopXWords.js"></script>
+
+<script type = 'text/javascript'>
+"use strict";
+
+var isIE = document.all;
+var g_charSentThres = 30;
+
+/* Global Variables - HighlightDoc */
+var g_HLD;
+
+/* Global Variables - CoOccurring Words */
+var g_COW;      //instance for Co-Occurring Words
+
+/* Global Variables - Stemmer Class */
+var g_objStemmer;
+var g_stemMinLen = 3;         //the minimum character length for a string to be considered a stem
+var g_minSimThres = 0.8;      //minimum percentage similarity for 2 strings to be considered similar
+
+/* Global Variables - Naives Bayes */
+var g_bayes;            //g_bayes = an instance of Naives Bayes
+
+//FROM: http://stackoverflow.com/questions/1173194/select-all-div-text-with-single-mouse-click
+//SEE ALSO: http://www.quirksmode.org/dom/range_intro.html
+function selectText( containerid ) {
+    if (document.selection) {
+        var range = document.body.createTextRange();
+        range.moveToElementText(document.getElementById( containerid ));
+        range.select();
+    } else if (window.getSelection) {
+        var range = document.createRange();
+        range.selectNode(document.getElementById( containerid ));
+        window.getSelection().addRange(range);
+    }
+}
+
+function selectTextV2( containerid ) {
+    //METHOD: This is like "selectText()", however there is an error in Google Chrome
+    //Description of error & solution is here: https://stackoverflow.com/questions/43260617/selection-addrange-is-deprecated-and-will-be-removed-from-chrome
+    if (document.selection) {
+        var range = document.body.createTextRange();
+        range.moveToElementText(document.getElementById( containerid ));
+        range.select();
+    } else if (window.getSelection) {
+        var selection = window.getSelection();
+        var range = document.createRange();
+        range.selectNode(document.getElementById( containerid ));
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+}
+
+function mouseOrig(x) {
+    if ( document.all )     //for Internet Explorer
+    {
+        xOrig = window.event.x;
+        yOrig = window.event.y;     
+    }
+    else //works for Netscape & Mozilla
+    {
+        xOrig = x.pageX;
+        yOrig = x.pageY;    
+    }
+}
+
+function highlightSentHover(e) {
+    //METHOD: highlights sentence that are hovered over. Requires events 'onmouseenter' and 'onmouseleave'
+    var sent = isIE ? e.srcElement : e.target;
+
+    //NOTE: e.type gives the event type (e.g. mouseover, mouseenter, mouseleave, mouseout)
+    switch( e.type ) {
+        case 'mouseenter':
+            sent.style.backgroundColor = "hsla(157, 35%, 50%, 0.5)";
+            break;
+        case 'mouseleave':
+            sent.style.backgroundColor = "transparent";
+            break;
+    }
+
+    //TEST:: console.log("event type = ", e.type);
+}
+
+function highlightSent(e) {
+    //METHOD: highlights sentences based on click
+    var sent = isIE ? e.srcElement : e.target;
+
+    if (sent.style.backgroundColor == 'transparent')
+        sent.style.backgroundColor = "hsla(157, 35%, 50%, 0.5)";
+    else
+        sent.style.backgroundColor = 'transparent';
+}
+
+function displayDoc( arrSents ) {
+    /*
+    Display document
+    Args:
+        -arrSents = array of sentences (usually from instance of FullSent or HighlightDoc)
+    */
+    var groupSent = parseInt( $('#setGroupSent').val() );
+
+    var compileSent = arrSents.map( 
+        function(sent, i) {
+            if (i % groupSent == 0)
+                return "<span id = 'sentbg" + i + "' onclick = 'highlightSent(event)' style = 'background-color:transparent;'>" + sent + "</span><br/><br/>";
+            else
+                return "<span id = 'sentbg" + i + "' onclick = 'highlightSent(event)' style = 'background-color:transparent;'>" + sent + "</span>";
+        } 
+    );
+
+    //display document
+    var fontSize = $('#setFontSize').val();
+    var lineHeight = fontSize * 2;
+    $('#docViewArea').html( compileSent );
+
+    // $('#docViewArea').css( 'font-size', fontSize );
+    // $('#docViewArea').css( 'line-height', lineHeight );
+
+    $('#docViewArea').css( 'font-size', fontSize + 'px' );
+    $('#docViewArea').css( 'line-height', lineHeight + 'px' );
+}
+
+
+function saveDoc() {
+    //METHOD: process document with FullSent.js
+    var groupSent = parseInt( $('#setGroupSent').val() );
+
+    //split document into individual words
+    var fullSent = new FullSent( $('#textUpload').val(), g_charSentThres );
+    //display document
+    displayDoc( fullSent.arrCompSent );
+    
+    //Save document to hidden input fields
+    $('#DocFull').val( $('#textUpload').val() );
+    //create a version of the text where common words are removed
+    var textRCW = strTools_removeCommonWords_SelectText( $('#textUpload').val() );      //textRCW = text Remove Common Words
+    $('#DocFullCWR').val( textRCW );
+
+    //create word stemmer algorithm
+    g_objStemmer = new classStemmer( $('#textUpload').val(), g_stemMinLen, g_minSimThres );
+
+    //create CoOccurWord object - 
+    var fullSentRCW = new FullSent( textRCW, g_charSentThres - 10 );
+    var arrStemSent = g_objStemmer.translateWordToStem( fullSentRCW.arrCompSent );
+    createCOWObj( false );
+}
+
+/* FUNCTION: Co-Occurring Words */
+function createCOWObj( statStem ) {
+    /*
+    VAR: statStem = boolean where:
+        -true = g_COW (instance of class CoOccurWord) will record sentences that contain stem words
+        -false = g_COW (instance of class CoOccurWord) will record sentences that contain normal words (perhaps common words are removed)
+    METHOD: creates a CoOccurWord object instance
+    */
+    
+    //create sentences that will remove common words & replace each word with stem
+    var fullSentRCW = new FullSent( $('#DocFullCWR').val(), g_charSentThres - 10 );     //fullSentRCW = Full Sentences Remove Common Words
+    if ( statStem )    //if statStem == true, then record stem words based 
+        var arrSents = g_objStemmer.translateWordToStem( fullSentRCW.arrCompSent );
+    else                //if statStem == false, then just
+        var arrSents = fullSentRCW.arrCompSent;
+
+    //create CoOccurWord instance    
+    var dist_back = 1;
+    var dist_forward = 1;
+    var thresFreq = 2;
+    //set global variable 
+    g_COW = new CoOccurWord( arrSents, dist_back, dist_forward, thresFreq );
+
+    //TEST:: console.log( "g_COW.arrSents = ", g_COW.arrSents );
+}
+
+function listWordStems() {
+    //METHOD: finds keys in hashOWS (hash Original Word to Stem) that are similar to string 'inputStr'
+    var hashMatches = g_objStemmer.showListWordStems( $('#input_listWordStems').val() );
+    
+    //display hash of results
+    var strMatches = "";
+    for (var k in hashMatches)
+        strMatches+= k + " = " + hashMatches[k] + "<br/>";
+
+    $('#display_listWordStems ').html( strMatches );
+}
+
+function searchCoOccurWords() {
+    //METHOD: finds words that co-occur with a word of interest
+    var hashCOW = g_COW.findCoOccurWords( $('#input_searchCoOccurWords').val() );
+    hashCOW = obj_sortByVal( hashCOW, true );
+    
+    //display co-occurring word results
+    var strCOW = $('#input_searchCoOccurWords').val() + "<br/>" ;
+    for (var k in hashCOW)
+        strCOW += k + ": " + hashCOW[k] + "<br/>";
+
+    $('#display_searchCoOccurWords').html( strCOW );
+}
+
+function createBayes() {
+    //METHOD: creates a Naives Bayes algorithm
+
+    //split document into individual words
+    var fullSent = new FullSent( $('#textUpload').val(), g_charSentThres );
+    var distBefore = parseInt( $('#input_sentBefore').val() );
+    var distAfter = parseInt( $('#input_sentAfter').val() );
+    var thresFreq = 2;
+
+    console.log( "Naive Bayes V1" );
+
+    //perform stemming on the document to find root words (help find features better)
+    var arrStemSents = g_objStemmer.translateWordToStem( fullSent.arrCompSent );
+    var obj_NB = new NaiveBayesV1( arrStemSents, distBefore, distAfter, thresFreq );
+
+    //TEST:: display table of classes & features
+    var excelFreq1 = hashMatrixForExcel( obj_NB.cfFreq );
+    var excelFreq2 = hashMatrixForExcel( obj_NB.cfRelFreq );
+    var dataStrBox = "<table>";
+    dataStrBox += "<tr><td>Excel Table<br/><div id='excelTable1' onclick='selectTextV2(this.id)'> " + excelFreq1 + "</div></td></tr>";
+    dataStrBox += "<tr><td>Excel Table<br/><div id='excelTable2' onclick='selectTextV2(this.id)'> " + excelFreq2 + "</div></td></tr>";
+    dataStrBox += "</table>";
+
+    console.log( "CB_TEST - DONE" );
+    $('#display_NaiveBayes').html( dataStrBox );
+}
+
+/*
+Test Module - 171119_TopXWords.js
+nickname prefix: tm1
+*/
+function tm1_displayTopXWords_Front() {
+    var topXWords = 15;
+    tm1_displayTopXWords( $('#DocFullCWR').val(), topXWords );
+}
+
+function tm1_topCoOccurWords_Front() { tm1_topCoOccurWords( $('#tm1_input_coOccurWord').val() ); }
+
+
+function tm1_clearHierarchy() {
+    /*
+    Clears list of hierarchy words
+    */
+    //add new search value to hierarchy list
+    $('#tm1_clickHierarchy_hidden').val();
+    $('#breadcrumbs_Hierarchy').html();
+    $('#displayButtons_Hierarchy').html();
+}
+
+function tm1_clickHierarchy_Front() { 
+    /*
+    finds the most co-occurring words with user-typed word in field
+    NOTE: the string in $('#tm1_input_wordHier').val() is the "stem" of a word, therefore can use wordStemmer.hashSOW to find full word associated with stem
+    */
+    //clear the word list
+    g_HLD.clearWordList();
+
+    //find all words that are associated with stem in $('#tm1_input_wordHier').val()
+    var stemWord = $('#tm1_input_wordHier').val();
+    //add new search value to hierarchy list
+    $('#tm1_clickHierarchy_hidden').val( stemWord );
+
+    var htmlButtons = tm1_clickHierarchy( stemWord, null, false, $('#tm1_clickHierarchy_hidden').val().split(',') );
+
+    //display in HTML
+    $('#breadcrumbs_Hierarchy').html( stemWord );
+    $('#displayButtons_Hierarchy').html( htmlButtons );
+}
+
+function tm1_clickHierarchy_Front_2(e) {
+    /*
+    Use after the function tm1_clickHierarchy_Front(), where can click on a word to select the words of interest
+    */
+    var wordInfo = isIE ? e.srcElement : e.target;
+
+    if ( wordInfo.hasAttribute("wordOI") )
+        var wordOI = wordInfo.getAttribute( "wordOI" );
+    else
+        var wordOI = wordInfo.value;
+
+    //TEST::
+    console.log( "e = ", e );
+    console.log( "wordInfo = ", wordInfo );
+    console.log( "wordInfo.hasAttribute = ", wordInfo.hasAttribute("wordOI") );
+    console.log( "wordInfo.value = ", wordInfo.value );
+
+    //append new search value to hierarchy list
+    var newHier = $('#tm1_clickHierarchy_hidden').val() + "," +  wordOI;
+    $('#tm1_clickHierarchy_hidden').val( newHier );
+
+    //TEST::
+    console.log( "hierarchyHidden = ", $('#tm1_clickHierarchy_hidden').val().split(',') );
+    console.log( "hierarchy_strSentI = ", $("#tm1_hierarchy_strSentI").attr('strSentI') );
+
+    //generate HTML buttons
+    var htmlButtons = tm1_clickHierarchy( wordOI, $("#tm1_hierarchy_strSentI").attr('strSentI'), false, $('#tm1_clickHierarchy_hidden').val().split(',') );
+
+    //display in HTML
+    $('#breadcrumbs_Hierarchy').html( $('#breadcrumbs_Hierarchy').html() + " >> " + wordOI );
+    $('#displayButtons_Hierarchy').html( htmlButtons );
+}
+
+window.onload = function() {
+    //set up input fields that can be submitted using "enter"
+    /* tm1_clickHierarchy_Front */
+    document.getElementById( "tm1_input_wordHier" ).onkeydown = function( event ) {
+        if ( event.keyCode == 13 )
+            tm1_clickHierarchy_Front();
+    }
+
+    // //Alternative version to "press enter to submit input" where I use "addEventListener"
+    // document.getElementById( "tm1_input_wordHier" ).addEventListener( "keydown", function(e) {
+    //     if (!e) { var e = window.event; }
+    //     e.preventDefault();     //what is this used for? This is useful somehow
+
+    //     if (e.keyCode == 13) { tm1_clickHierarchy_Front(); }
+    // }, false );
+
+    /* tm1_clickHierarchy_Front_2 --> if want to appent word */
+    document.getElementById( "tm1_input_wordHier_add" ).onkeydown = function( event ) {
+        if ( event.keyCode == 13 )
+            tm1_clickHierarchy_Front_2( event );
+    }
+}
+
+
+
+</script>
+
+</head>
+
+<body>
+<span id = 'popUpArea'></span>
+<input type = 'hidden' id = 'DocFull'/>      <!--Full Document where Commmon Words Removed -->
+<input type = 'hidden' id = 'DocFullCWR'/>      <!--Document where Commmon Words Removed -->
+<input type = 'hidden' id = 'tm1_clickHierarchy_hidden'>      <!-- save list of words in hierarchy tm1_clickHierarchy_Front() -->
+
+<table border = '0' cellpadding = '5' cellspacing = '10'><tr>
+    <td valign = 'top'>
+        <table>
+            <tr><td class = 'boxBorder' valign = 'top'>
+                <textarea id = 'textUpload'></textarea>
+                <br/>
+                <!-- <button onclick = 'saveDoc()'>Record Document</button> -->
+                <button onclick = 'saveDocV2_TEST()'>Record Document V2</button>
+                <br/>
+                Font Size: <input id = 'setFontSize' type = 'text' value = '20' size = '2' />
+                <br/>
+                Group Sent: <input id = 'setGroupSent' type = 'text' value = '3' size = '2' />
+            </td></tr>
+
+            <tr><td class = 'boxBorder' valign = 'top'>
+                Find Similar Words to Key:
+                <br/>
+                <!-- Input for finding co-occurring words -->
+                <input type = 'text' id = 'input_listWordStems' onkeyup = 'listWordStems()'/>
+                <br/>
+                <span id = 'display_listWordStems'></span>
+            </td></tr>
+
+            <tr><td class = 'boxBorder' valign = 'top'>
+                Find Co-Occurring Words:
+                <br/>
+                <!-- Input for finding co-occurring words -->
+                <input type = 'text' id = 'input_searchCoOccurWords'/>
+                <br/>
+                <button onclick = 'searchCoOccurWords()'>Find Co-Occurring Words</button>
+                <br/>
+                <span id = 'display_searchCoOccurWords'></span>
+            </td></tr>
+
+            <tr><td class = 'boxBorder' valign = 'top'>
+                Naives Bayes V1:
+                <br/>
+                <!-- Input for finding co-occurring words -->
+                SentBefore:
+                <input type = 'text' id = 'input_sentBefore' value = '1'/>
+                <br/>
+                SentAfter:
+                <input type = 'text' id = 'input_sentAfter' value = '0'/>
+                <br/>
+                <button onclick = 'createBayes()'>Perform Naives Bayes</button>
+                <br/>
+
+                <span id = 'display_NaiveBayes'></span>
+            </td></tr>
+
+             <tr><td class = 'boxBorder' valign = 'top'>
+                TestModule 1:
+                <br/>
+                <button onclick = 'tm1_displayTopXWords_Front()'>tm1_displayTopXWords_Front</button>
+                <br/>
+                <div style='width:100%;height:1px;background-color:#C94242;'></div>
+                <input type = 'text' id = 'tm1_input_coOccurWord' value = 'CoOccur Word'/>
+                <button onclick = 'tm1_topCoOccurWords_Front()'>tm1_topCoOccurWords_Front</button>
+                <br/>
+
+                <div style='width:100%;height:1px;background-color:#C94242;'></div>
+                <input type = 'text' id = 'tm1_input_wordHier' value = 'Hierarchy Word'/>
+                <!-- <button onclick = 'tm1_clickHierarchy_Front()'>tm1_clickHierarchy_Front</button> -->
+                <input type = 'text' id = 'tm1_input_wordHier_add' value = 'Add Hier. Word'/>
+                <br/>
+                <button onclick = "tm1_clearHierarchy()">Clear Current Search</button>
+                <br/>
+                <span id = 'breadcrumbs_Hierarchy'></span>
+                <br/>
+                <span id = 'displayButtons_Hierarchy'></span>
+                <br/>
+
+                <div style='width:100%;height:1px;background-color:#C94242;'></div>
+                <input id = 'checkboxStatAllWords' type = 'checkbox'/>Only Co-Occurring Words
+                <br/>
+                <button onclick = 'tm1_highlightWords()'>Highlight Words</button>
+                <br/>
+                <button onclick = 'tm1_highlightSents()'>Highlight Sentences</button>
+                <br/>
+                Rainbow Thres: <input type = 'text' id = 'tm1_input_rainbowThres' maxlength = '2' value = '-1'>
+                <button onclick = 'tm1_highlightSentsRainbow()'>Rainbow Highlight Sentences</button>
+                <br/>
+                <span id = 'tm1_output_rainbowScale'></span>
+            </td></tr>
+        </table>
+    </td>
+
+    <td valign = 'top'>
+        <div id = 'pageArea'>
+            <div id = 'docViewArea'></div>
+        </div>
+    </td>
+</tr></table>
+
+</body>
+
+</html>

@@ -1,0 +1,102 @@
+<html>
+
+<head>
+
+<title>
+    170304_DocTest_V1
+</title>
+
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Lato">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Open+Sans">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=PT+Sans">
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Droid+Sans">
+<link rel = "stylesheet" type = "text/css" href = "XDP_Midnight.css">
+
+<script src = "../Classes/jquery-2.1.4.min.js"></script>
+<script src = "../Classes/FullSent.js"></script>
+<script src = "../Classes/CoOccurWord_151213.js"></script>
+
+<script type = 'text/javascript'>
+var isIE = document.all;
+var g_charSentThres = 30;
+
+function highlightSentHover(e) {
+    //METHOD: highlights sentence that are hovered over. Requires events 'onmouseenter' and 'onmouseleave'
+    var sent = isIE ? e.srcElement : e.target;
+
+    //NOTE: e.type gives the event type (e.g. mouseover, mouseenter, mouseleave, mouseout)
+    switch( e.type ) {
+        case 'mouseenter':
+            sent.style.backgroundColor = "hsla(157, 35%, 50%, 0.5)";
+            break;
+        case 'mouseleave':
+            sent.style.backgroundColor = "transparent";
+            break;
+    }
+
+    //TEST:: console.log("event type = ", e.type);
+}
+
+function highlightSent(e) {
+    //METHOD: highlights sentences based on click
+    var sent = isIE ? e.srcElement : e.target;
+
+    if (sent.style.backgroundColor == 'transparent')
+        sent.style.backgroundColor = "hsla(157, 35%, 50%, 0.5)";
+    else
+        sent.style.backgroundColor = 'transparent';
+}
+
+function saveDoc() {
+    //METHOD: process document with FullSent.js
+    var groupSent = parseInt( $('#setGroupSent').val() );
+
+    //split document into individual words
+    var fullSent = new FullSent( $('#textUpload').val(), g_charSentThres );
+    var compileSent = fullSent.arrCompSent.map( 
+        function(sent, i) {
+            if (i % groupSent == 0)
+                return "<span id = 'sentbg" + i + "' onclick = 'highlightSent(event)' style = 'background-color:transparent;'>" + sent + "</span><br/><br/>";
+            else
+                return "<span id = 'sentbg" + i + "' onclick = 'highlightSent(event)' style = 'background-color:transparent;'>" + sent + "</span>";
+        } 
+    );
+
+    //display document
+    var fontSize = $('#setFontSize').val();
+    var lineHeight = fontSize * 2;
+    $('#docViewArea').html( compileSent );
+
+    // $('#docViewArea').css( 'font-size', fontSize );
+    // $('#docViewArea').css( 'line-height', lineHeight );
+
+    $('#docViewArea').css( 'font-size', fontSize + 'px' );
+    $('#docViewArea').css( 'line-height', lineHeight + 'px' );
+}
+</script>
+
+</head>
+
+<body>
+
+<table border = '0' cellpadding = '5' cellspacing = '10'><tr>
+    <td valign = "top">
+        <textarea id = 'textUpload'></textarea>
+        <br/>
+        <button onclick = 'saveDoc()'>Record Document</button>
+        <br/>
+        Font Size: <input id = 'setFontSize' type = 'text' value = '20' size = '2' />
+        <br/>
+        Group Sent: <input id = 'setGroupSent' type = 'text' value = '3' size = '2' />
+    </td>
+
+    <td valign = "top">
+        <div id = 'pageArea'>
+            <div id = 'docViewArea'></div>
+        </div>
+    </td>
+</tr></table>
+
+</body>
+
+</html>
